@@ -151,9 +151,18 @@ class Updater(private val platform: PlatformInfo, private val isDismissed: (Stri
     companion object {
         // Updates are published on the Terabit site: /dl/latest.json and /dl/<version>/<file>.
         // Until something is published there the check simply finds nothing.
-        private val MANIFESTS = listOf("https://terabitvpn.ru/dl/latest.json")
-        private val SERVERS = listOf("https://terabitvpn.ru/dl/")
-        private val MIRRORS = listOf("https://terabitvpn.ru/dl/")
+   private val MANIFESTS = listOf(
+       "https://terabitvpn.ru/dl/latest.json",
+       "https://github.com/terabitvpn/client/releases/latest/download/latest.json",
+   )
+   private val SERVERS = listOf(
+       "https://terabitvpn.ru/dl/",
+       "https://github.com/terabitvpn/client/releases/download/v",
+   )
+   private val MIRRORS = listOf(
+       "https://terabitvpn.ru/dl/",
+       "https://github.com/terabitvpn/client/releases/latest/download/",
+   )
 
         /** "0.1.10" > "0.1.9"; suffixes like "-dev" are ignored. */
         fun compareVersions(a: String, b: String): Int {
