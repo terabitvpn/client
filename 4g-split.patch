@@ -1,0 +1,211 @@
+diff --git a/shared/src/commonMain/kotlin/ru/terabitvpn/core/TerabitController.kt b/shared/src/commonMain/kotlin/ru/terabitvpn/core/TerabitController.kt
+index 68a8fec..4ab5614 100644
+--- a/shared/src/commonMain/kotlin/ru/terabitvpn/core/TerabitController.kt
++++ b/shared/src/commonMain/kotlin/ru/terabitvpn/core/TerabitController.kt
+@@ -725,15 +725,22 @@ class TerabitController(
+     }
+ 
+     /**
+-     * The server to recommend (the «Лучший сейчас» card, failover): among those that answer, regular
+-     * servers before white lists (the scarce pool), the lowest ping inside the pool. No protocol or
+-     * country is favoured: the measured ping is the only thing that ranks servers.
++     * The server to recommend (the «Лучший сейчас» card, failover): among those that answer, the lowest
++     * ping. The «4G» routes (white-list bypass, see [Server.isLimited]) are never recommended: they have
++     * their own button on the home screen. No protocol or country is favoured: the measured ping is the
++     * only thing that ranks servers.
+      */
+     fun bestServer(exclude: Set<String> = emptySet()): Server? {
+         val p = _pings.value
+-        val alive = allServers().filter { !it.isAuto && it.id !in exclude && p[it.id]?.ok == true }
+-        val regular = alive.filter { !it.isWhitelist }
+-        return regular.ifEmpty { alive }.minByOrNull { p[it.id]!!.ms }
++        val alive = allServers().filter { !it.isAuto && !it.isLimited && it.id !in exclude && p[it.id]?.ok == true }
++        return alive.minByOrNull { p[it.id]!!.ms }
++    }
++
++    /** The «4G» server to offer: the lowest ping among those that answer, else the first one; null when there is none. */
++    fun bestLimitedServer(): Server? {
++        val p = _pings.value
++        val limited = allServers().filter { !it.isAuto && it.isLimited }
++        return limited.filter { p[it.id]?.ok == true }.minByOrNull { p[it.id]!!.ms } ?: limited.firstOrNull()
+     }
+ 
+     // ------------------------------------------------------------------ ping
+diff --git a/shared/src/commonMain/kotlin/ru/terabitvpn/core/model/Models.kt b/shared/src/commonMain/kotlin/ru/terabitvpn/core/model/Models.kt
+index 17bfe27..019365b 100644
+--- a/shared/src/commonMain/kotlin/ru/terabitvpn/core/model/Models.kt
++++ b/shared/src/commonMain/kotlin/ru/terabitvpn/core/model/Models.kt
+@@ -108,6 +108,12 @@ data class Server(
+     val canPing: Boolean get() = protocol != MIHOMO_PROFILE
+     /** A white list, either pool: the tunnel is only used where normal traffic is blocked. */
+     val isWhitelist: Boolean get() = pool == POOL_WL || pool == POOL_WL2
++    /**
++     * The «4G» route: the server for networks where normal traffic is cut off (it bypasses white lists).
++     * Recognised by the pool or by the name («Германия (Ограничен. 4G)»). It is its own choice on the home
++     * screen and never counts as the «Лучший сейчас» pick.
++     */
++    val isLimited: Boolean get() = isWhitelist || name.lowercase().let { "4g" in it || "огранич" in it }
+     /**
+      * «Белые списки 2» — the white list that runs on Hysteria2. The Terabit server sends it as
+      * plain [POOL_WL] (older apps only know that one), so the protocol tells the two apart.
+diff --git a/shared/src/commonMain/kotlin/ru/terabitvpn/ui/screens/HomeScreen.kt b/shared/src/commonMain/kotlin/ru/terabitvpn/ui/screens/HomeScreen.kt
+index f33c014..50ee1db 100644
+--- a/shared/src/commonMain/kotlin/ru/terabitvpn/ui/screens/HomeScreen.kt
++++ b/shared/src/commonMain/kotlin/ru/terabitvpn/ui/screens/HomeScreen.kt
+@@ -276,60 +276,97 @@ private fun greeting(nowMs: Long, offsetMin: Int): String {
+     }
+ }
+ 
+-/** Shown while disconnected: the server we'll use, its ping, and a big connect button. */
++/**
++ * Shown while disconnected, in two parts: «Готов к подключению» — the regular servers (the server that is
++ * picked, or else «Лучший сейчас») — and «4G» — the route for networks where normal traffic is cut off.
++ * Each part has its own connect button.
++ */
+ @Composable
+ private fun ReadyCard(m: HomeModel, controller: TerabitController) {
+     val c = Brand.colors
+-    val server = m.server
++    val pings by controller.pings.collectAsState()
++    val pinging by controller.pinging.collectAsState()
++    val regular = m.server?.takeIf { !it.isLimited }
++        ?: controller.bestServer()
++        ?: controller.allServers().firstOrNull { !it.isAuto && !it.isLimited }
++    val limited = controller.bestLimitedServer()
+     GlassCard(Modifier.fillMaxWidth(), padding = 18.dp, strong = true) {
+-      androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
++        Column {
++            ReadyRow(
++                label = if (m.orb == OrbState.ERROR && regular?.id == m.server?.id) "Попробуем ещё раз?" else "Готов к подключению",
++                server = regular, ping = regular?.let { pings[it.id]?.ms }, pinging = regular?.id in pinging,
++                m = m, controller = controller,
++            )
++            if (limited != null) {
++                Spacer(Modifier.height(14.dp))
++                Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
++                Spacer(Modifier.height(14.dp))
++                ReadyRow(
++                    label = if (m.orb == OrbState.ERROR && limited.id == m.server?.id) "4G · попробуем ещё раз?" else "4G · обход белых списков",
++                    server = limited, ping = pings[limited.id]?.ms, pinging = limited.id in pinging,
++                    m = m, controller = controller,
++                )
++            }
++        }
++    }
++}
++
++/** One part of [ReadyCard]: the server, its protocol and ping, and the button that picks it and connects. */
++@Composable
++private fun ReadyRow(label: String, server: Server?, ping: Long?, pinging: Boolean, m: HomeModel, controller: TerabitController) {
++    val c = Brand.colors
++    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+         val narrow = maxWidth < 440.dp
++        val connecting = m.orb == OrbState.CONNECTING
+         val connect: @Composable (Modifier) -> Unit = { mod ->
+             ru.terabitvpn.ui.components.AccentButton(
+-                if (m.orb == OrbState.CONNECTING) "Подключаю…" else "Подключить",
+-                { controller.haptic(ru.terabitvpn.core.vpn.Haptic.HEAVY); controller.toggle() },
++                if (connecting && server?.id == m.server?.id) "Подключаю…" else "Подключить",
++                {
++                    controller.haptic(ru.terabitvpn.core.vpn.Haptic.HEAVY)
++                    server?.let { controller.select(it.id) }
++                    controller.toggle()
++                },
+                 modifier = mod,
+                 icon = Icons.Rounded.Bolt,
+-                enabled = server != null && m.orb != OrbState.CONNECTING,
++                enabled = server != null && !connecting,
+             )
+         }
+-       Column {
+-        Row(verticalAlignment = Alignment.CenterVertically) {
+-            ServerAvatar(server, 52.dp)
+-            Spacer(Modifier.width(14.dp))
+-            Column(Modifier.weight(1f)) {
+-                Text(if (m.orb == OrbState.ERROR) "Попробуем ещё раз?" else "Готов к подключению", style = MaterialTheme.typography.labelSmall, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-                if (server == null) Text("Сервер не выбран", style = MaterialTheme.typography.titleMedium)
+-                else {
+-                    val t = server.title()
+-                    ru.terabitvpn.ui.components.FlagText(t.title + (t.subtitle?.let { " · $it" } ?: ""), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-                    Spacer(Modifier.height(4.dp))
+-                    // The ping sits on the protocol line: the name gets the card's full width instead of
+-                    // being squeezed between a pill and the button.
+-                    Row(verticalAlignment = Alignment.CenterVertically) {
+-                        Text(
+-                            listOfNotNull(server.protocolLabel(), server.transportLabel()).joinToString(" · "),
+-                            style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+-                            modifier = Modifier.weight(1f, fill = false),
+-                        )
+-                        if (server.canPing) {
+-                            Spacer(Modifier.width(8.dp))
+-                            PingPill(m.ping, m.pinging)
++        Column {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                ServerAvatar(server, 52.dp)
++                Spacer(Modifier.width(14.dp))
++                Column(Modifier.weight(1f)) {
++                    Text(label, style = MaterialTheme.typography.labelSmall, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                    if (server == null) Text("Сервер не выбран", style = MaterialTheme.typography.titleMedium)
++                    else {
++                        val t = server.title()
++                        ru.terabitvpn.ui.components.FlagText(t.title + (t.subtitle?.let { " · $it" } ?: ""), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                        Spacer(Modifier.height(4.dp))
++                        // The ping sits on the protocol line: the name gets the row's full width instead of
++                        // being squeezed between a pill and the button.
++                        Row(verticalAlignment = Alignment.CenterVertically) {
++                            Text(
++                                listOfNotNull(server.protocolLabel(), server.transportLabel()).joinToString(" · "),
++                                style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
++                                modifier = Modifier.weight(1f, fill = false),
++                            )
++                            if (server.canPing) {
++                                Spacer(Modifier.width(8.dp))
++                                PingPill(ping, pinging)
++                            }
+                         }
+                     }
+                 }
++                if (!narrow) {
++                    Spacer(Modifier.width(12.dp))
++                    connect(Modifier)
++                }
+             }
+-            if (!narrow) {
+-                Spacer(Modifier.width(12.dp))
+-                connect(Modifier)
++            if (narrow) {
++                Spacer(Modifier.height(14.dp))
++                connect(Modifier.fillMaxWidth())
+             }
+         }
+-        if (narrow) {
+-            Spacer(Modifier.height(14.dp))
+-            connect(Modifier.fillMaxWidth())
+-        }
+-       }
+-      }
+     }
+ }
+ 
+diff --git a/shared/src/commonTest/kotlin/ru/terabitvpn/core/model/PoolTest.kt b/shared/src/commonTest/kotlin/ru/terabitvpn/core/model/PoolTest.kt
+index f9e1870..5475518 100644
+--- a/shared/src/commonTest/kotlin/ru/terabitvpn/core/model/PoolTest.kt
++++ b/shared/src/commonTest/kotlin/ru/terabitvpn/core/model/PoolTest.kt
+@@ -45,3 +45,17 @@ class PoolTest {
+         assertTrue(TrafficPool(POOL_WL2, 0, 1).isWhitelist)
+     }
+ }
++
++class LimitedServerTest {
++    private fun server(name: String, pool: String? = null) = Server(id = name, name = name, protocol = "vless", pool = pool)
++
++    @kotlin.test.Test
++    fun fourGRoutesAreRecognisedByNameOrPool() {
++        kotlin.test.assertTrue(server("🇩🇪 Германия (Ограничен. 4G)").isLimited)
++        kotlin.test.assertTrue(server("Германия 4g").isLimited)
++        kotlin.test.assertTrue(server("Германия (Ограничен.)").isLimited)
++        kotlin.test.assertTrue(server("Любое имя", pool = POOL_WL).isLimited)
++        kotlin.test.assertFalse(server("Германия (Vision)").isLimited)
++        kotlin.test.assertFalse(server("Швеция (XHTTP)").isLimited)
++    }
++}

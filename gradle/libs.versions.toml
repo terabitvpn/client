@@ -1,0 +1,71 @@
+[versions]
+agp = "9.4.1"
+android-compileSdk = "37"
+android-minSdk = "26"
+android-targetSdk = "36"
+androidx-activity = "1.13.0"
+androidx-core = "1.17.0"
+androidx-lifecycle = "2.11.0"
+camerax = "1.6.2"
+compose-material-icons = "1.7.3"
+compose-material3 = "1.9.0"
+compose-multiplatform = "1.12.1"
+jna = "5.19.1"
+kaml = "0.104.0"
+kotlin = "2.4.20"
+kotlinx-coroutines = "1.11.0"
+kotlinx-io = "0.9.1"
+kotlinx-serialization = "1.11.0"
+ktor = "3.6.0"
+mlkit-barcode = "17.3.0"
+# Xray core for desktop (XTLS/Xray-core release) — downloaded by :desktopApp:fetchXrayCore
+xrayDesktop = "26.9.9"
+# Xray core for Android (2dust/AndroidLibXrayLite, LGPL-3.0) — downloaded by :androidApp:fetchXrayCore
+xrayCore = "26.9.9"
+xrayCoreSha256 = "9ecf4c921568d8f4cb8550d3bafe08ff6f1d1984f45a6ad183dcdf52ee9302de"
+# mihomo core for desktop: legiz-ru/Prizrak-Core release (a mihomo fork) — downloaded by :desktopApp:fetchMihomoCore
+prizrakCore = "1.19.31"
+# mihomo core for Android: commit of legiz-ru/Prizrak-Box-android (branch prizrak) — built by tools/android/build-mihomo-core.sh
+prizrakAndroid = "1aba4d7180b2e5ee8ff28624a2a9c9ffecc812d0"
+# SHA-256 of the AARs published by the "mihomo core for Android" workflow for that commit
+prizrakAndroidCoreSha256 = "9b7b4341ef7631de0a6757391e98ce7dbf5608add61355447174a72ecd0aaee0"
+prizrakAndroidCommonSha256 = "00d7033a0a16311568dfb686bfa83e99df4f8623a2a286750ddf3a21ca5dd5f3"
+
+[libraries]
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
+androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodelCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-uiBackhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", version.ref = "compose-multiplatform" }
+compose-uiTooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "compose-multiplatform" }
+compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
+kaml = { module = "com.charleskorn.kaml:kaml", version.ref = "kaml" }
+kotlinx-io = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkit-barcode" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

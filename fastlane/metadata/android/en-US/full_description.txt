@@ -1,0 +1,24 @@
+Terabit VPN is a VPN client built on the Xray core. One tap and your connection is protected.
+
+<b>Highlights</b>
+• Connect with a single tap on the big button — no manual setup.
+• Smart server choice: the app measures latency and switches to the fastest server by itself.
+• Restricted-network mode: on mobile networks with allow-lists Terabit moves to servers that keep working, and comes back once the regular connection is stable again.
+• Automatic failover when the current server stops responding.
+• Protocols: VLESS (Reality, XHTTP, gRPC), VMess, Trojan, Shadowsocks and Hysteria2.
+
+<b>Subscriptions</b>
+• Add by link, from the clipboard or with a QR code.
+• Automatic subscription updates with remaining traffic and expiry shown.
+• Compatible with Happ-style subscriptions and plain vless://, vmess://, trojan://, ss://, hysteria2:// links.
+
+<b>For those who want more</b>
+• Split tunnelling: choose apps that use the VPN or bypass it.
+• Smart routing, custom domain rules, DNS choice, ad blocking, IPv6, MTU, multiplexing, TLS fragmentation, QUIC blocking.
+• Local SOCKS5/HTTP proxy with a login and password.
+• Start on boot and a Quick Settings tile.
+
+<b>Open source</b>
+Terabit VPN is based on the open-source Ghostly VPN project and is distributed under GPL-3.0. No ads, no trackers, no browsing data collected.
+
+A VPN server subscription is required — the app itself does not provide servers.

@@ -1,0 +1,79 @@
+# Fork builds with the mihomo core: Android APKs and a Windows portable zip as artifacts.
+name: Build (mihomo)
+
+on:
+  push:
+    branches: [mihomo]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          check-latest: true
+          cache: false
+      - uses: gradle/actions/setup-gradle@v4
+      # The mihomo core (Go + NDK) takes a while to build: keep it until the pinned commit changes.
+      - name: Restore mihomo core
+        id: core-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            androidApp/libs/mihomo-core.aar
+            androidApp/libs/mihomo-common.aar
+            androidApp/libs/.mihomo-ref
+          key: mihomo-core-${{ hashFiles('gradle/libs.versions.toml', 'tools/android/build-mihomo-core.sh') }}
+      - name: Build mihomo core
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: bash tools/android/build-mihomo-core.sh
+      # Saved right away, so a later failing step doesn't throw the 8-minute core build away.
+      - name: Save mihomo core
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            androidApp/libs/mihomo-core.aar
+            androidApp/libs/mihomo-common.aar
+            androidApp/libs/.mihomo-ref
+          key: mihomo-core-${{ hashFiles('gradle/libs.versions.toml', 'tools/android/build-mihomo-core.sh') }}
+      - name: Unit tests
+        run: ./gradlew :shared:jvmTest --console=plain
+      - name: Android release build
+        run: ./gradlew :androidApp:assembleRelease --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terabit-android
+          path: |
+            androidApp/build/outputs/apk/release/*arm64*.apk
+            androidApp/build/outputs/apk/release/*universal*.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Desktop app image
+        run: ./gradlew :desktopApp:createDistributable --console=plain
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          $app = "desktopApp\build\compose\binaries\main\app\Terabit"
+          Set-Content -Path "$app\portable" -Value "Terabit portable (mihomo)" -Encoding ascii
+          New-Item -ItemType Directory -Force build\release | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f build\release\Terabit-Windows-Portable.zip -C desktopApp\build\compose\binaries\main\app Terabit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terabit-windows-portable
+          path: build/release/Terabit-Windows-Portable.zip

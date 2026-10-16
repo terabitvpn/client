@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Referenced by the mihomo core AAR (ClashMetaForAndroid flavor resValues); its UI module is not used here. -->
+<resources>
+    <string name="application_name_meta" translatable="false">Terabit</string>
+    <string name="launch_name_meta" translatable="false">Terabit</string>
+</resources>

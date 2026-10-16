@@ -1,0 +1,31 @@
+*.iml
+.kotlin
+.gradle
+**/build/
+xcuserdata
+!src/**/build/
+local.properties
+.idea
+.DS_Store
+captures
+.externalNativeBuild
+.cxx
+node_modules/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+# Xray core binaries are downloaded by the build, never committed
+androidApp/libs/*.aar
+desktopApp/core/
+keystore.properties
+*.jks
+*.keystore
+androidApp/libs/.mihomo-ref
+
+# local notes, not part of the repo
+CLAUDE.md
+store/google-play/README.md

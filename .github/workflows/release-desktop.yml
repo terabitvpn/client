@@ -1,0 +1,74 @@
+name: Release macOS & Linux
+
+# Windows and Android are built and published from the maintainer's machine (signed APK, Inno
+# installer); macOS and Linux need their own OS to package, so GitHub builds them for every release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the builds to (e.g. v0.1.8)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest        # Apple Silicon
+            kind: mac
+            suffix: macOS-AppleSilicon
+          - os: macos-15-intel      # Intel (macos-13 runners were retired)
+            kind: mac
+            suffix: macOS-Intel
+          - os: ubuntu-22.04        # glibc old enough for most distros
+            kind: linux
+            suffix: Linux
+    runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A release builds its own tag; a manual run builds the current branch and attaches to the given tag.
+          ref: ${{ github.event.release.tag_name || github.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Linux packaging tools
+        if: matrix.kind == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm fakeroot
+
+      - name: macOS disk image
+        if: matrix.kind == 'mac'
+        run: |
+          ./gradlew :desktopApp:packageDmg --console=plain
+          mkdir -p out
+          cp "$(find desktopApp/build/compose/binaries/main/dmg -name '*.dmg' | head -1)" "out/Terabit-${{ matrix.suffix }}.dmg"
+
+      - name: Linux packages
+        if: matrix.kind == 'linux'
+        run: |
+          ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable --console=plain
+          mkdir -p out
+          cp "$(find desktopApp/build/compose/binaries/main/deb -name '*.deb' | head -1)" out/Terabit-Linux.deb
+          cp "$(find desktopApp/build/compose/binaries/main/rpm -name '*.rpm' | head -1)" out/Terabit-Linux.rpm
+          tar -C desktopApp/build/compose/binaries/main/app -czf out/Terabit-Linux.tar.gz Terabit
+
+      - name: SHA-256
+        run: |
+          cd out
+          if command -v sha256sum >/dev/null; then sha256sum * > "SHA256-${{ matrix.suffix }}.txt"; else shasum -a 256 * > "SHA256-${{ matrix.suffix }}.txt"; fi
+          cat SHA256-*.txt
+
+      - name: Attach to the release
+        run: gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"

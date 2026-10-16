@@ -1,0 +1,39 @@
+name: mihomo core for Android
+
+# Builds the Android mihomo core AARs (Go + NDK) once per pinned Prizrak-Box-android commit and
+# publishes them as a prerelease, so regular builds (including Windows ones) just download them
+# and check the SHA-256 pinned in gradle/libs.versions.toml.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - name: Build the core
+        run: bash tools/android/build-mihomo-core.sh
+      - name: Publish
+        run: |
+          REF="$(cat androidApp/libs/.mihomo-ref)"
+          TAG="mihomo-android-${REF:0:12}"
+          cd androidApp/libs
+          sha256sum mihomo-core.aar mihomo-common.aar | tee SHA256SUMS.txt
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
+              --title "mihomo core for Android ($REF)" \
+              --notes "Built by CI from legiz-ru/Prizrak-Box-android@$REF. Used by the Android build; not an app release."
+          gh release upload "$TAG" mihomo-core.aar mihomo-common.aar SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"

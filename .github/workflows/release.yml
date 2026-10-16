@@ -1,0 +1,95 @@
+# Cuts a fork release entirely from CI: creates the tag's release, attaches the Android APKs and a
+# Windows portable zip. macOS/Linux packages are added by "Release macOS & Linux" run for the same tag
+# (a release created with the workflow token doesn't fire that workflow's release trigger by itself).
+name: Release (fork)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (e.g. v0.2.5; a tag with -beta becomes a pre-release)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          check-latest: true
+          cache: false
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Restore mihomo core
+        id: core-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            androidApp/libs/mihomo-core.aar
+            androidApp/libs/mihomo-common.aar
+            androidApp/libs/.mihomo-ref
+          key: mihomo-core-${{ hashFiles('gradle/libs.versions.toml', 'tools/android/build-mihomo-core.sh') }}
+      - name: Build mihomo core
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        run: bash tools/android/build-mihomo-core.sh
+      - name: Save mihomo core
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            androidApp/libs/mihomo-core.aar
+            androidApp/libs/mihomo-common.aar
+            androidApp/libs/.mihomo-ref
+          key: mihomo-core-${{ hashFiles('gradle/libs.versions.toml', 'tools/android/build-mihomo-core.sh') }}
+      - name: Unit tests
+        run: ./gradlew :shared:jvmTest --console=plain
+      - name: Android release build
+        run: ./gradlew :androidApp:assembleRelease --console=plain
+      - name: Create the release and attach APKs
+        run: |
+          mkdir -p out
+          cp "$(find androidApp/build/outputs/apk/release -name '*arm64*.apk' | head -1)" out/Terabit-Android.apk
+          cp "$(find androidApp/build/outputs/apk/release -name '*universal*.apk' | head -1)" out/Terabit-Android-universal.apk
+          cd out && sha256sum * > SHA256-Android.txt && cd ..
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Terabit ${TAG#v}" --generate-notes $([[ "$TAG" == *-beta* ]] && echo --prerelease)
+          gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  windows:
+    runs-on: windows-latest
+    needs: android
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Desktop app image
+        run: ./gradlew :desktopApp:createDistributable --console=plain
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          $app = "desktopApp\build\compose\binaries\main\app\Terabit"
+          Set-Content -Path "$app\portable" -Value "Terabit portable" -Encoding ascii
+          New-Item -ItemType Directory -Force out | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f out\Terabit-Windows-Portable.zip -C desktopApp\build\compose\binaries\main\app Terabit
+          Get-FileHash out\Terabit-Windows-Portable.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  Terabit-Windows-Portable.zip" } | Set-Content out\SHA256-Windows.txt
+      - name: Attach to the release
+        shell: pwsh
+        run: gh release upload "$env:TAG" (Get-ChildItem out\*) --clobber --repo "$env:GITHUB_REPOSITORY"
